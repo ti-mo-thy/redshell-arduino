@@ -139,7 +139,8 @@ PacketInfo msg_encoder_encode(int32_t speed_motor_left_rpm, int32_t speed_motor_
         result.data[i + speed_size_bytes] = (speed_motor_right_rpm >> (byte_size * i)) & 0xFF;
     }
     
-    result.crc = gen_crc16(result.data, REDSHELL_PAYLOAD_SIZE);
+    // gen_crc16 currently bugged
+    result.crc = 0;//gen_crc16(result.data, REDSHELL_PAYLOAD_SIZE);
     return result;
 }
 
@@ -167,6 +168,8 @@ void msg_encoder_decode(PacketInfo packet, int32_t* speed_motor_left_rpm, int32_
 
 volatile int32_t pos1_ticks = 0;
 volatile int32_t pos2_ticks = 0;
+
+int32_t last_cmd_time_ms;
 
 // The ISR must be as short as possible
 void pos1_update() {
@@ -287,7 +290,7 @@ void updateSpeed(double &speed1_rpm, double &speed2_rpm) {
 }
 
 void setup() {
-  Serial.begin(9600);// Set pin 2 as an input
+  Serial.begin(19200);
   pinMode(ENC_A1, INPUT);
   pinMode(ENC_B1, INPUT);
   pinMode(ENC_A2, INPUT);
@@ -302,14 +305,74 @@ void setup() {
 }
 
 
-void loop() {
-  double speed1_rpm, speed2_rpm;
+uint8_t encoder_msg[REDSHELL_MESSAGE_SIZE];
+
+void send_encoder_data()
+{
+  double speed1_rpm = 0;
+  double speed2_rpm = 0;
   updateSpeed(speed1_rpm, speed2_rpm);
-  Serial.print("T: ");
-  Serial.print(pos1_ticks);
-  Serial.print(", S: ");
-  Serial.println(speed1_rpm);
-  set_motor_1(0, 1);
-  set_motor_2(0, 1);
+  PacketInfo enc_packet = msg_encoder_encode((int32_t)speed1_rpm, (int32_t)speed2_rpm);
+  serialize(enc_packet, encoder_msg);
+  Serial.write(encoder_msg, REDSHELL_MESSAGE_SIZE);
+}
+
+int8_t sign(int32_t x)
+{
+  return (x > 0) - (x < 0);
+}
+
+char command_buffer[REDSHELL_MESSAGE_SIZE];
+uint8_t command_index{0};
+bool reading_msg{false};
+
+void check_command_data()
+{
+  while(Serial.available() > 0)
+  {
+    char incoming_byte = Serial.read();
+
+    if (incoming_byte == REDSHELL_START_BYTE)
+    {
+      command_index = 0;
+      reading_msg = true;
+    }
+  
+    if (reading_msg)
+    {
+      command_buffer[command_index] = incoming_byte;
+      command_index++;
+  
+      if (command_index >= REDSHELL_MESSAGE_SIZE)
+      {
+        PacketInfo incoming_packet;
+        deserialize(&incoming_packet, (uint8_t*)(command_buffer));
+
+        int32_t speed_left_pct, speed_right_pct;
+        msg_command_decode(incoming_packet, &speed_left_pct, &speed_right_pct);
+
+        set_motor_1(abs(speed_left_pct), sign(speed_left_pct));
+        set_motor_2(abs(speed_right_pct), sign(speed_right_pct));
+        
+        reading_msg = false;
+      }
+    }
+  }
+}
+
+void check_timeout()
+{
+  static constexpr int32_t timeout_ms = 200;
+  if ((millis() - last_cmd_time_ms) > timeout_ms)
+  {
+    set_motor_1(0, 1);
+    set_motor_2(0, 1);
+  }
+}
+
+void loop() {
   delay(300);
+  send_encoder_data();
+//  check_command_data();/
+//  check_timeo/ut();
 }
