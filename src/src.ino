@@ -1,10 +1,163 @@
-//#include "./redshell-messages/include/redshell/encoder.h"
-//#include "./redshell-messages/include/redshell/command.h"
+#ifndef REDSHELL_MESSAGES_H
+#define REDSHELL_MESSAGES_H
 
-#define A1 3
-#define B1 2
-#define A2 4
-#define B2 5
+#include <stdlib.h>
+#include <stdint.h>
+
+/* PACKET INTEGER FORMAT
+    |START_BIT|ID|PACKET|CRC|
+      where: 
+        START_BIT is 1 byte
+        ID is 1 byte
+        PACKET is 8 bytes
+        CRC is 2 bytes
+*/
+
+#define REDSHELL_START_BYTE 0x66 // Execute Order 66 :D
+#define REDSHELL_CRC16 0x8005
+#define REDSHELL_PAYLOAD_SIZE 8
+#define REDSHELL_MESSAGE_SIZE (4 + REDSHELL_PAYLOAD_SIZE)
+
+typedef struct {
+    uint8_t start; 
+    uint8_t id;
+    uint8_t data[REDSHELL_PAYLOAD_SIZE];
+    uint16_t crc;
+} PacketInfo;
+
+uint16_t gen_crc16(const uint8_t *data, uint16_t size){
+    uint16_t out = 0;
+    int bits_read = 0, bit_flag;
+    /* Sanity check: */
+    if(data == NULL){
+        return 0;
+    }
+    while(size > 0){
+        bit_flag = out >> 15;
+        /* Get next bit: */
+        out <<= 1;
+        out |= (*data >> bits_read) & 1; // item a) work from the least significant bits
+        /* Increment bit counter: */
+        bits_read++;
+        if(bits_read > 7){
+            bits_read = 0;
+            data++;
+            size--;
+        }
+        /* Cycle check: */
+        if(bit_flag){
+            out ^= REDSHELL_CRC16;
+        }
+    }
+    // item b) "push out" the last 16 bits
+    int i;
+    for (i = 0; i < 16; ++i) {
+        bit_flag = out >> 15;
+        out <<= 1;
+        if(bit_flag)
+            out ^= REDSHELL_CRC16;
+    }
+    // item c) reverse the bits
+    uint16_t crc = 0;
+    i = 0x8000;
+    int j = 0x0001;
+    for (; i != 0; i >>=1, j <<= 1) {
+        if (i & out) crc |= j;
+    }
+    return crc;
+}
+
+void serialize(PacketInfo packet, uint8_t* serial_packet) {
+    serial_packet[0] = packet.start;
+    serial_packet[1] = packet.id;
+
+    for (int i = 0; i < REDSHELL_PAYLOAD_SIZE; i++)
+    {
+        serial_packet[2 + i] = packet.data[i];
+    }
+
+    serial_packet[2 + REDSHELL_PAYLOAD_SIZE] = (packet.crc & 0xFF);
+    serial_packet[2 + REDSHELL_PAYLOAD_SIZE + 1] = ((packet.crc >> 8) & 0xFF);
+}
+
+void deserialize(PacketInfo* packet, uint8_t* serial_packet) {
+    packet->start = serial_packet[0];
+    packet->id = serial_packet[1];
+
+    for (int i = 0; i < REDSHELL_PAYLOAD_SIZE; i++)
+    {
+        packet->data[i] = serial_packet[2 + i];
+    }
+
+    packet->crc = serial_packet[2 + REDSHELL_PAYLOAD_SIZE] | (packet->crc << 8);
+}
+#endif 
+
+#ifndef COMMAND_H
+#define COMMAND_H
+
+#define REDSHELL_MSG_ID_COMMAND 0x2
+
+PacketInfo msg_command_encode(int32_t speed_left_pct, int32_t speed_right_pct) {
+    PacketInfo result;
+    result.start = REDSHELL_START_BYTE;
+    result.id = REDSHELL_MSG_ID_COMMAND;
+    
+    const int speed_size_bytes = 4;
+    const int byte_size = 8;
+    for (int i = 0; i < speed_size_bytes; i++) {
+        result.data[i] = (speed_left_pct >> (byte_size * i)) & 0xFF;
+        result.data[i + speed_size_bytes] = (speed_right_pct >> (byte_size * i)) & 0xFF;
+    }
+
+    result.crc = gen_crc16(result.data, REDSHELL_PAYLOAD_SIZE);
+
+    return result;
+}
+
+void msg_command_decode(PacketInfo packet, int32_t* speed_left_pct, int32_t* speed_right_pct) {
+    *speed_left_pct = packet.data[0] | (packet.data[1] << 8) | (packet.data[2] << 16) | (packet.data[3] << 24);
+    *speed_right_pct = packet.data[4] | (packet.data[5] << 8) | (packet.data[6] << 16) | (packet.data[7] << 24);
+}
+
+#endif
+
+#ifndef ENCODER_H
+#define ENCODER_H
+
+#define REDSHELL_MSG_ID_ENCODER 0x1
+
+PacketInfo msg_encoder_encode(int32_t speed_motor_left_rpm, int32_t speed_motor_right_rpm) {
+    PacketInfo result;
+    result.start = REDSHELL_START_BYTE;
+    result.id = REDSHELL_MSG_ID_ENCODER;
+
+    const int speed_size_bytes = 4;
+    const int byte_size = 8;
+    for (int i = 0; i < speed_size_bytes; i++) {
+        result.data[i] = (speed_motor_left_rpm >> (byte_size * i)) & 0xFF;
+        result.data[i + speed_size_bytes] = (speed_motor_right_rpm >> (byte_size * i)) & 0xFF;
+    }
+    
+    result.crc = gen_crc16(result.data, REDSHELL_PAYLOAD_SIZE);
+    return result;
+}
+
+void msg_encoder_decode(PacketInfo packet, int32_t* speed_motor_left_rpm, int32_t* speed_motor_right_rpm) {
+    *speed_motor_left_rpm = packet.data[0] | (packet.data[1] << 8) | (packet.data[2] << 16) | (packet.data[3] << 24);
+    *speed_motor_right_rpm = packet.data[4] | (packet.data[5] << 8) | (packet.data[6] << 16) | (packet.data[7] << 24);
+}
+
+#endif
+
+
+
+
+
+#define ENC_A1 3
+#define ENC_B1 2
+#define ENC_A2 4
+#define ENC_B2 5
 #define EN_A 6
 #define EN_B 9
 #define IN_1 14
@@ -17,7 +170,7 @@ volatile int32_t pos2_ticks = 0;
 
 // The ISR must be as short as possible
 void pos1_update() {
-  if (digitalRead(A1) != digitalRead(B1)) {
+  if (digitalRead(ENC_A1) != digitalRead(ENC_B1)) {
     pos1_ticks++;
   } else {
     pos1_ticks--;
@@ -25,7 +178,7 @@ void pos1_update() {
 }
 
 void pos2_update() {
-  if (digitalRead(A2) != digitalRead(B2)) {
+  if (digitalRead(ENC_A2) != digitalRead(ENC_B2)) {
     pos2_ticks++;
   } else {
     pos2_ticks--;
@@ -113,7 +266,12 @@ void updateSpeed(double &speed1_rpm, double &speed2_rpm) {
 
     static constexpr double ms_to_s = 1e-3;
     const int32_t currentTime_ms = millis();
-    const double timeDelta_s = static_cast<double>(currentTime_ms - lastTime_ms) * ms_to_s;
+    const int32_t time_delta_ms = currentTime_ms - lastTime_ms;
+    if (time_delta_ms == 0)
+    {
+        return;
+    }
+    const double timeDelta_s = static_cast<double>(time_delta_ms) * ms_to_s;
 
     static constexpr int16_t ticksPerCycle = 48;
     const double positionDelta1_cycles = static_cast<double>(pos1_ticks - last_pos1_ticks) / ticksPerCycle;
@@ -130,23 +288,21 @@ void updateSpeed(double &speed1_rpm, double &speed2_rpm) {
 
 void setup() {
   Serial.begin(9600);// Set pin 2 as an input
-  pinMode(A1, INPUT);
-  pinMode(B1, INPUT);
-  pinMode(A2, INPUT);
-  pinMode(B2, INPUT);
+  pinMode(ENC_A1, INPUT);
+  pinMode(ENC_B1, INPUT);
+  pinMode(ENC_A2, INPUT);
+  pinMode(ENC_B2, INPUT);
   pinMode(EN_A, OUTPUT);
   pinMode(IN_1, OUTPUT);
   pinMode(IN_2, OUTPUT);
   pinMode(IN_3, OUTPUT);
   pinMode(IN_4, OUTPUT);
-  attachInterrupt(digitalPinToInterrupt(A1), pos1_update, CHANGE);
-  attachInterrupt(digitalPinToInterrupt(A2), pos2_update, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(ENC_A1), pos1_update, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(ENC_A2), pos2_update, CHANGE);
 }
 
 
 void loop() {
-//  set_motor_val(EN_/A, IN_1, IN_2, 0, 0);
-  //Serial.println(pos1_ticks);
   double speed1_rpm, speed2_rpm;
   updateSpeed(speed1_rpm, speed2_rpm);
   Serial.print("T: ");
