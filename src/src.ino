@@ -151,6 +151,40 @@ void msg_encoder_decode(PacketInfo packet, int32_t* speed_motor_left_rpm, int32_
 
 #endif
 
+#ifndef IMU_H
+#define IMU_H
+
+#define REDSHELL_MSG_ID_IMU 0x0
+
+PacketInfo msg_imu_encode(uint16_t x, uint16_t y, uint16_t z) {
+    PacketInfo result;
+    result.start = REDSHELL_START_BYTE;
+    result.id = REDSHELL_MSG_ID_IMU;
+    result.data[0] = (x >> REDSHELL_PAYLOAD_SIZE) & 0xFF;
+    result.data[1] = (x & 0xFF);
+    result.data[2] = (y >> REDSHELL_PAYLOAD_SIZE) & 0xFF;
+    result.data[3] = (y & 0xFF);
+    result.data[4] = (z >> REDSHELL_PAYLOAD_SIZE) & 0xFF;
+    result.data[5] = (z & 0xFF);
+    result.data[6] = 0;
+    result.data[7] = 0;
+    result.crc = gen_crc16(result.data, REDSHELL_PAYLOAD_SIZE);  // Compute CRC16 checksum for data integrity
+    return result;
+}
+
+void msg_imu_decode(PacketInfo packet, uint16_t* x, uint16_t* y, uint16_t* z) {
+    *x = packet.data[1] | (packet.data[0] << REDSHELL_PAYLOAD_SIZE);
+    *y = packet.data[3] | (packet.data[2] << REDSHELL_PAYLOAD_SIZE);
+    *z = packet.data[5] | (packet.data[4] << REDSHELL_PAYLOAD_SIZE);
+}
+
+#endif
+
+#include <ADXL345.h>
+#include <Wire.h>
+
+ADXL345 adxl;
+
 
 
 
@@ -290,6 +324,54 @@ void updateSpeed(int32_t &speed1_rpm, int32_t &speed2_rpm) {
 
 void setup() {
   Serial.begin(19200);
+  // ADXL345 Accelerometer Initialisation:
+  adxl.powerOn();
+  //set activity/ inactivity thresholds (0-255)
+  adxl.setActivityThreshold(75); //62.5mg per increment
+  adxl.setInactivityThreshold(75); //62.5mg per increment
+  adxl.setTimeInactivity(10); // how many seconds of no activity is inactive?
+ 
+  //look of activity movement on this axes - 1 == on; 0 == off 
+  adxl.setActivityX(1);
+  adxl.setActivityY(1);
+  adxl.setActivityZ(1);
+ 
+  //look of inactivity movement on this axes - 1 == on; 0 == off
+  adxl.setInactivityX(1);
+  adxl.setInactivityY(1);
+  adxl.setInactivityZ(1);
+ 
+  //look of tap movement on this axes - 1 == on; 0 == off
+  adxl.setTapDetectionOnX(0);
+  adxl.setTapDetectionOnY(0);
+  adxl.setTapDetectionOnZ(1);
+ 
+  //set values for what is a tap, and what is a double tap (0-255)
+  adxl.setTapThreshold(50); //62.5mg per increment
+  adxl.setTapDuration(15); //625us per increment
+  adxl.setDoubleTapLatency(80); //1.25ms per increment
+  adxl.setDoubleTapWindow(200); //1.25ms per increment
+ 
+  //set values for what is considered freefall (0-255)
+  adxl.setFreeFallThreshold(7); //(5 - 9) recommended - 62.5mg per increment
+  adxl.setFreeFallDuration(45); //(20 - 70) recommended - 5ms per increment
+ 
+  //setting all interrupts to take place on int pin 1
+  //I had issues with int pin 2, was unable to reset it
+  adxl.setInterruptMapping( ADXL345_INT_SINGLE_TAP_BIT,   ADXL345_INT1_PIN );
+  adxl.setInterruptMapping( ADXL345_INT_DOUBLE_TAP_BIT,   ADXL345_INT1_PIN );
+  adxl.setInterruptMapping( ADXL345_INT_FREE_FALL_BIT,    ADXL345_INT1_PIN );
+  adxl.setInterruptMapping( ADXL345_INT_ACTIVITY_BIT,     ADXL345_INT1_PIN );
+  adxl.setInterruptMapping( ADXL345_INT_INACTIVITY_BIT,   ADXL345_INT1_PIN );
+ 
+  //register interrupt actions - 1 == on; 0 == off  
+  adxl.setInterrupt( ADXL345_INT_SINGLE_TAP_BIT, 1);
+  adxl.setInterrupt( ADXL345_INT_DOUBLE_TAP_BIT, 1);
+  adxl.setInterrupt( ADXL345_INT_FREE_FALL_BIT,  1);
+  adxl.setInterrupt( ADXL345_INT_ACTIVITY_BIT,   1);
+  adxl.setInterrupt( ADXL345_INT_INACTIVITY_BIT, 1);
+
+
   pinMode(ENC_A1, INPUT);
   pinMode(ENC_B1, INPUT);
   pinMode(ENC_A2, INPUT);
@@ -313,6 +395,18 @@ void send_encoder_data()
   PacketInfo enc_packet = msg_encoder_encode(-speed2_rpm, -speed1_rpm);
   serialize(enc_packet, encoder_msg);
   Serial.write(encoder_msg, REDSHELL_MESSAGE_SIZE);
+}
+
+uint8_t imu_msg[REDSHELL_MESSAGE_SIZE];
+
+void send_imu_data() {
+  uint8_t imu_msg[REDSHELL_MESSAGE_SIZE];
+
+  int x,y,z;  
+	adxl.readXYZ(&x, &y, &z);
+  PacketInfo imu_packet = msg_imu_encode(x, y, z);
+  serialize(imu_packet, imu_msg);
+  Serial.write(imu_msg, REDSHELL_MESSAGE_SIZE);
 }
 
 int8_t sign(int32_t x)
@@ -372,6 +466,7 @@ void check_timeout()
 
 void loop() {
   send_encoder_data();
+  send_imu_data();
   check_command_data();
   check_timeout();
 }
