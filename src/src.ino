@@ -155,9 +155,9 @@ void msg_encoder_decode(PacketInfo packet, int32_t* speed_motor_left_rpm, int32_
 
 
 
-#define ENC_A1 3
-#define ENC_B1 2
-#define ENC_A2 4
+#define ENC_A1 2
+#define ENC_A2 3
+#define ENC_B1 4
 #define ENC_B2 5
 #define EN_A 6
 #define EN_B 9
@@ -171,7 +171,6 @@ volatile int32_t pos2_ticks = 0;
 
 int32_t last_cmd_time_ms;
 
-// The ISR must be as short as possible
 void pos1_update() {
   if (digitalRead(ENC_A1) != digitalRead(ENC_B1)) {
     pos1_ticks++;
@@ -372,7 +371,10 @@ void check_timeout()
 
 void loop() {
   delay(300);
-  send_encoder_data();
+//  send_encoder_data();/
+  Serial.print(pos1_ticks);
+  Serial.print(" ");
+  Serial.println(pos2_ticks);
 //  check_command_data();/
 //  check_timeo/ut();
 }
