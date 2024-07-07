@@ -312,7 +312,7 @@ void send_encoder_data()
   int32_t speed1_rpm = 0;
   int32_t speed2_rpm = 0;
   updateSpeed(speed1_rpm, speed2_rpm);
-  PacketInfo enc_packet = msg_encoder_encode(speed1_rpm, speed2_rpm);
+  PacketInfo enc_packet = msg_encoder_encode(-speed2_rpm, -speed1_rpm);
   serialize(enc_packet, encoder_msg);
   Serial.write(encoder_msg, REDSHELL_MESSAGE_SIZE);
 }
