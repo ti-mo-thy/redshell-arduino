@@ -350,10 +350,12 @@ void check_command_data()
         int32_t speed_left_pct, speed_right_pct;
         msg_command_decode(incoming_packet, &speed_left_pct, &speed_right_pct);
 
+
         set_motor_1(abs(speed_left_pct), sign(speed_left_pct));
         set_motor_2(abs(speed_right_pct), sign(speed_right_pct));
         
         reading_msg = false;
+        last_cmd_time_ms = millis();
       }
     }
   }
@@ -371,10 +373,7 @@ void check_timeout()
 
 void loop() {
   delay(300);
-//  send_encoder_data();/
-  Serial.print(pos1_ticks);
-  Serial.print(" ");
-  Serial.println(pos2_ticks);
-//  check_command_data();/
-//  check_timeo/ut();
+  send_encoder_data();
+  check_command_data();
+  check_timeout();
 }
