@@ -161,10 +161,10 @@ void msg_encoder_decode(PacketInfo packet, int32_t* speed_motor_left_rpm, int32_
 #define ENC_B2 5
 #define EN_A 6
 #define EN_B 9
-#define IN_1 14
-#define IN_2 15
-#define IN_3 16
-#define IN_4 17
+#define IN_1 16
+#define IN_2 17
+#define IN_3 14
+#define IN_4 15
 
 volatile int32_t pos1_ticks = 0;
 volatile int32_t pos2_ticks = 0;
@@ -351,8 +351,8 @@ void check_command_data()
         msg_command_decode(incoming_packet, &speed_left_pct, &speed_right_pct);
 
 
-        set_motor_1(abs(speed_left_pct), sign(speed_left_pct));
-        set_motor_2(abs(speed_right_pct), sign(speed_right_pct));
+        set_motor_1(abs(speed_right_pct), -sign(speed_right_pct));
+        set_motor_2(abs(speed_left_pct), -sign(speed_left_pct));
         
         reading_msg = false;
         last_cmd_time_ms = millis();
@@ -372,7 +372,6 @@ void check_timeout()
 }
 
 void loop() {
-  delay(300);
   send_encoder_data();
   check_command_data();
   check_timeout();
