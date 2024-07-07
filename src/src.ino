@@ -261,27 +261,28 @@ void set_motor_2(float duty, const int8_t dir){
     }
 }
 
-void updateSpeed(double &speed1_rpm, double &speed2_rpm) {
+void updateSpeed(int32_t &speed1_rpm, int32_t &speed2_rpm) {
     static int32_t last_pos1_ticks = 0;
     static int32_t last_pos2_ticks = 0;
     static int32_t lastTime_ms = 0;
 
-    static constexpr double ms_to_s = 1e-3;
     const int32_t currentTime_ms = millis();
     const int32_t time_delta_ms = currentTime_ms - lastTime_ms;
     if (time_delta_ms == 0)
     {
         return;
     }
-    const double timeDelta_s = static_cast<double>(time_delta_ms) * ms_to_s;
+
+    // Unsure why this isn't being multiplied by 60 but seems to work
+    static constexpr double ms_to_s = 1e-3;
+    const double time_delta_min = static_cast<double>(time_delta_ms) * ms_to_s;
 
     static constexpr int16_t ticksPerCycle = 48;
     const double positionDelta1_cycles = static_cast<double>(pos1_ticks - last_pos1_ticks) / ticksPerCycle;
     const double positionDelta2_cycles = static_cast<double>(pos2_ticks - last_pos2_ticks) / ticksPerCycle;
 
-    static constexpr double rps_to_rpm = 60.0;
-    speed1_rpm = (positionDelta1_cycles / timeDelta_s) * rps_to_rpm;
-    speed2_rpm = (positionDelta2_cycles / timeDelta_s) * rps_to_rpm;
+    speed1_rpm = static_cast<int32_t>(round(positionDelta1_cycles / time_delta_min));
+    speed2_rpm = static_cast<int32_t>(round(positionDelta2_cycles / time_delta_min));
 
     last_pos1_ticks = pos1_ticks;
     last_pos2_ticks = pos2_ticks;
@@ -308,10 +309,10 @@ uint8_t encoder_msg[REDSHELL_MESSAGE_SIZE];
 
 void send_encoder_data()
 {
-  double speed1_rpm = 0;
-  double speed2_rpm = 0;
+  int32_t speed1_rpm = 0;
+  int32_t speed2_rpm = 0;
   updateSpeed(speed1_rpm, speed2_rpm);
-  PacketInfo enc_packet = msg_encoder_encode((int32_t)speed1_rpm, (int32_t)speed2_rpm);
+  PacketInfo enc_packet = msg_encoder_encode(speed1_rpm, speed2_rpm);
   serialize(enc_packet, encoder_msg);
   Serial.write(encoder_msg, REDSHELL_MESSAGE_SIZE);
 }
