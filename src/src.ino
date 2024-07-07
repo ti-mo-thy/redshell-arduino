@@ -407,6 +407,13 @@ void send_imu_data() {
   PacketInfo imu_packet = msg_imu_encode(x, y, z);
   serialize(imu_packet, imu_msg);
   Serial.write(imu_msg, REDSHELL_MESSAGE_SIZE);
+  //For the sake of testing:
+  Serial.print("values of X , Y , Z: ");
+	Serial.print(x);
+	Serial.print(" , ");
+	Serial.print(y);
+	Serial.print(" , ");
+	Serial.println(z);
 }
 
 int8_t sign(int32_t x)
