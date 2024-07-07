@@ -214,7 +214,6 @@ void set_motor_val(uint8_t pin, uint8_t in_front, uint8_t in_back, float duty, c
     }
 }
 
-
 void set_motor_1(float duty, const int8_t dir){
   switch (dir) {
       case 1: {
@@ -275,9 +274,9 @@ void updateSpeed(int32_t &speed1_rpm, int32_t &speed2_rpm) {
 
     // Unsure why this isn't being multiplied by 60 but seems to work
     static constexpr double ms_to_s = 1e-3;
-    const double time_delta_min = static_cast<double>(time_delta_ms) * ms_to_s;
+    const double time_delta_min = static_cast<double>(time_delta_ms) * ms_to_s * (1.0 / 60.0);
 
-    static constexpr int16_t ticksPerCycle = 48;
+    static constexpr int16_t ticksPerCycle = 700;
     const double positionDelta1_cycles = static_cast<double>(pos1_ticks - last_pos1_ticks) / ticksPerCycle;
     const double positionDelta2_cycles = static_cast<double>(pos2_ticks - last_pos2_ticks) / ticksPerCycle;
 
@@ -300,10 +299,9 @@ void setup() {
   pinMode(IN_2, OUTPUT);
   pinMode(IN_3, OUTPUT);
   pinMode(IN_4, OUTPUT);
-  attachInterrupt(digitalPinToInterrupt(ENC_A1), pos1_update, CHANGE);
-  attachInterrupt(digitalPinToInterrupt(ENC_A2), pos2_update, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(ENC_A1), pos1_update, RISING);
+  attachInterrupt(digitalPinToInterrupt(ENC_A2), pos2_update, RISING);
 }
-
 
 uint8_t encoder_msg[REDSHELL_MESSAGE_SIZE];
 
