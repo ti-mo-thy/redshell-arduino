@@ -159,8 +159,8 @@ void msg_encoder_decode(PacketInfo packet, int32_t* speed_motor_left_rpm, int32_
 #define ENC_A2 3
 #define ENC_B1 4
 #define ENC_B2 5
-#define EN_A 6
-#define EN_B 9
+#define EN_A 9
+#define EN_B 6
 #define IN_1 16
 #define IN_2 17
 #define IN_3 14
@@ -187,8 +187,8 @@ void pos2_update() {
   }
 }
 
-uint8_t get_duty_cycle(float duty) {
-  return (uint8_t) (2.55 * duty);
+int8_t get_duty_cycle(int32_t duty) {
+  return (int8_t) (2.55 * duty);
 }
 
 void set_motor_val(uint8_t pin, uint8_t in_front, uint8_t in_back, float duty, const int8_t dir){
@@ -214,7 +214,7 @@ void set_motor_val(uint8_t pin, uint8_t in_front, uint8_t in_back, float duty, c
     }
 }
 
-void set_motor_1(float duty, const int8_t dir){
+void set_motor_1(int32_t duty, const int8_t dir){
   switch (dir) {
       case 1: {
             digitalWrite(IN_1, HIGH);
@@ -237,7 +237,7 @@ void set_motor_1(float duty, const int8_t dir){
     }
 }
 
-void set_motor_2(float duty, const int8_t dir){
+void set_motor_2(int32_t duty, const int8_t dir){
     switch (dir) {
         case 1: {
             digitalWrite(IN_3, HIGH);
@@ -289,7 +289,7 @@ void updateSpeed(int32_t &speed1_rpm, int32_t &speed2_rpm) {
 }
 
 void setup() {
-  Serial.begin(19200);
+  Serial.begin(115200);
   pinMode(ENC_A1, INPUT);
   pinMode(ENC_B1, INPUT);
   pinMode(ENC_A2, INPUT);
@@ -350,7 +350,7 @@ void check_command_data()
         msg_command_decode(incoming_packet, &speed_left_pct, &speed_right_pct);
 
 
-        set_motor_1(abs(speed_right_pct), -sign(speed_right_pct));
+        set_motor_1(abs(speed_right_pct), sign(speed_right_pct));
         set_motor_2(abs(speed_left_pct), -sign(speed_left_pct));
         
         reading_msg = false;
